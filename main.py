@@ -2,13 +2,36 @@ from pathlib import Path
 import fitz
 from PIL import Image, ImageDraw
 import io
+import os
 import sys
 import traceback
 import tkinter as tk
 from tkinter import messagebox
 
-INPUT_DIR = Path("input")
-OUTPUT_DIR = Path("output")
+# --windowed/--noconsoleビルドではsys.stdout/stderrがNoneになり、
+# print()やライブラリ内部の警告出力がAttributeErrorで落ちる原因になるため、
+# 起動直後に必ずダミーの書き込み先を用意しておく。
+if sys.stdout is None:
+    sys.stdout = open(os.devnull, "w")
+if sys.stderr is None:
+    sys.stderr = open(os.devnull, "w")
+
+# ダブルクリック起動時、作業ディレクトリはexe/.appの置き場所と一致しない
+# (macOSの.appは特に"/"などになる)。ユーザーが実行ファイルと同じ場所に
+# input/を置く運用を想定しているため、実行ファイルの実際の位置から
+# input/output フォルダを解決する。
+if getattr(sys, "frozen", False):
+    exe_path = Path(sys.executable).resolve()
+    if sys.platform == "darwin" and exe_path.parent.name == "MacOS":
+        # .../PDFMaskingTool.app/Contents/MacOS/PDFMaskingTool -> .appの置き場所
+        BASE_DIR = exe_path.parents[3]
+    else:
+        BASE_DIR = exe_path.parent
+else:
+    BASE_DIR = Path(__file__).resolve().parent
+
+INPUT_DIR = BASE_DIR / "input"
+OUTPUT_DIR = BASE_DIR / "output"
 
 OUTPUT_DIR.mkdir(exist_ok=True)
 
@@ -80,36 +103,45 @@ def main():
 
 if __name__ == "__main__":
     # ダブルクリック起動時は黒い画面が一切出ないため(--noconsoleビルド)、
-    # 処理結果をダイアログで必ず通知する。
-    root = tk.Tk()
-    root.withdraw()
-
-    if not INPUT_DIR.exists() or not any(INPUT_DIR.glob("*.pdf")):
-        messagebox.showwarning(
-            "PDFが見つかりません",
-            f"{INPUT_DIR.resolve()} にPDFファイルが見つかりませんでした。\n"
-            "このツールと同じ場所に input フォルダを作り、PDFを入れてから再実行してください。",
-        )
-        sys.exit(1)
+    # 処理結果をダイアログで必ず通知する。tk.Tk()自体の初期化失敗も含めて
+    # ここで捕まえ、DEBUG_LOGにも記録しておく(ユーザーからの問い合わせ時用)。
+    DEBUG_LOG = BASE_DIR / "debug.log"
 
     try:
-        processed = main()
-    except Exception:
-        messagebox.showerror(
-            "エラーが発生しました",
-            "マスキング処理中にエラーが発生しました。\n\n" + traceback.format_exc(),
-        )
-        sys.exit(1)
+        root = tk.Tk()
+        root.withdraw()
 
-    if processed:
-        names = "\n".join(p.name for p in processed)
-        messagebox.showinfo(
-            "完了",
-            f"{len(processed)} 件のPDFを処理しました。\n"
-            f"出力先: {OUTPUT_DIR.resolve()}\n\n{names}",
-        )
-    else:
-        messagebox.showwarning(
-            "処理対象なし",
-            f"{INPUT_DIR.resolve()} にPDFファイルが見つかりませんでした。",
-        )
+        if not INPUT_DIR.exists() or not any(INPUT_DIR.glob("*.pdf")):
+            messagebox.showwarning(
+                "PDFが見つかりません",
+                f"{INPUT_DIR.resolve()} にPDFファイルが見つかりませんでした。\n"
+                "このツールと同じ場所に input フォルダを作り、PDFを入れてから再実行してください。",
+            )
+            sys.exit(1)
+
+        try:
+            processed = main()
+        except Exception:
+            messagebox.showerror(
+                "エラーが発生しました",
+                "マスキング処理中にエラーが発生しました。\n\n" + traceback.format_exc(),
+            )
+            sys.exit(1)
+
+        if processed:
+            names = "\n".join(p.name for p in processed)
+            messagebox.showinfo(
+                "完了",
+                f"{len(processed)} 件のPDFを処理しました。\n"
+                f"出力先: {OUTPUT_DIR.resolve()}\n\n{names}",
+            )
+        else:
+            messagebox.showwarning(
+                "処理対象なし",
+                f"{INPUT_DIR.resolve()} にPDFファイルが見つかりませんでした。",
+            )
+    except SystemExit:
+        raise
+    except Exception:
+        DEBUG_LOG.write_text(traceback.format_exc(), encoding="utf-8")
+        raise
