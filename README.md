@@ -20,6 +20,43 @@
 
 使い方は同じで、`MaskPicker`と`PDFMaskingTool`を同じフォルダに置き、その中に`input/`を作ってPDFを入れる。実行ファイルの置き場所を基準に`input/`・`output/`・`mask_coords.json`を解決するため、作業ディレクトリに依存しない。
 
+## 使い方マニュアル(一般ユーザー向け)
+
+Pythonの知識がなくても、以下の手順だけで使える。
+
+### 初回セットアップ(レイアウトごとに1回)
+
+1. `MaskPicker`(macOSは`MaskPicker.app`、Windowsは`MaskPicker.exe`)と`PDFMaskingTool`(同様に`.app`/`.exe`)を同じフォルダに置く。
+2. そのフォルダの中に`input`という名前のフォルダを作り、黒塗りしたいPDF(同じ帳票フォーマットのもの)を入れる。
+3. `MaskPicker`をダブルクリックして起動する。
+   - PDFの1ページ目が表示される。
+   - 黒塗りしたい範囲をマウスで左ドラッグ → 表示される名前入力欄に項目名(例:「住所」など、値そのものではなく項目名)を入力。
+   - 間違えたら、その矩形を右クリックで削除、または「元に戻す」ボタンで直前の1件を取り消せる。
+   - 「次のページ」「前のページ」で他のページも同様に範囲を指定する(複数ファイルがある場合は自動的に次のファイルへ進む)。
+   - 全ページ終わったら「保存して終了」を押す。同じフォルダに`mask_coords.json`が作成/更新される。
+4. `PDFMaskingTool`をダブルクリックして起動する。
+   - 完了すると「◯件のPDFを処理しました」というダイアログが出て、同じフォルダの`output`フォルダに黒塗り済みPDFが出力される。
+   - `input`にPDFが無い場合や処理中にエラーが起きた場合も、必ずダイアログでその旨が表示される(画面が何も出ないまま終わることはない)。
+
+### 通常運用(2回目以降・同じレイアウトのPDFを処理するだけの場合)
+
+`mask_coords.json`はそのまま使い回せるので、`MaskPicker`での再設定は不要。
+
+1. `input`フォルダの中身を新しいPDFに入れ替える。
+2. `PDFMaskingTool`をダブルクリックする。
+3. `output`フォルダに黒塗り済みPDFが出力される。
+
+### マスク範囲を修正したいとき
+
+`MaskPicker`をもう一度ダブルクリックすると、直前に保存した矩形(赤)が復元された状態で編集を再開できる。修正して「保存して終了」すれば`mask_coords.json`が上書きされ、次回`PDFMaskingTool`を実行したときから新しい範囲が使われる。
+
+### 初回起動時の注意(macOS/Windows共通)
+
+署名(Apple Developer証明書 / コード署名証明書)を行っていないアプリのため、初回起動時にOSが警告を出すことがある。
+
+- **macOS**: 「開発元を確認できないため開けません」→ Finderで`.app`を**右クリック→「開く」**を選び、確認ダイアログで「開く」を押す。
+- **Windows**: 「WindowsによってPCが保護されました」(SmartScreen)→「詳細情報」をクリックし、「実行」を押す。
+
 ## 座標系についての注意(重要)
 
 `main.py` はページを `page.get_pixmap(matrix=fitz.Matrix(ZOOM, ZOOM))` で `ZOOM`倍(既定2倍)の解像度にラスタライズしてから矩形を黒塗りしている。
@@ -52,10 +89,30 @@ GUIが使えない環境では、代わりに `python calibrate.py` で `calibra
 - 同じ帳票フォーマットで対象者だけが異なる複数PDFを一気に処理するのに向いている。
 - レイアウトが異なるPDF(別の帳票種類など)を混在させると座標がズレるため、フォーマットごとに `mask_picker.py` で座標を採寸し直し、`mask_coords.json` を作り直す必要がある。
 
-## 実行方法
+## 実行方法(開発者向け・Pythonから直接実行する場合)
 
 ```
 python main.py
 ```
 
 `input/*.pdf` を読み込み、`output/*_masked.pdf` として黒塗り済みPDFを出力する。
+
+## 動作確認状況
+
+| 項目 | 状態 | 確認日 |
+|---|---|---|
+| macOS (`PDFMaskingTool.app` / `MaskPicker.app`) | ユーザーが実機で動作確認済み | 2026-07-11 |
+| Windows (`PDFMaskingTool.exe` / `MaskPicker.exe`) | GitHub Actions上のビルドは成功しているが、**実機での動作確認は未実施** | - |
+
+Windows実機での確認ができ次第、この表を更新すること。
+
+## 作業ログ
+
+| 日付 | 内容 |
+|---|---|
+| 2026-07-10 | GitHubリポジトリをclone。Windows用`.exe`パッケージング要望を受け、macOSではWindows向けにクロスコンパイルできないためGitHub Actions(windows-latest)上で`pyinstaller --onefile --noconsole`によるビルドを自動化する方針にした。`--noconsole`にすると処理結果が一切見えなくなるため、`main.py`に完了/エラー/PDFなしのtkinterダイアログを追加。 |
+| 2026-07-11 | ビルドした`.exe`をユーザーがMac上でダブルクリックし「データが壊れています」と表示される件に対応 → 実際はWindows用バイナリをmacOSで実行しようとしたことによるGatekeeperの誤解を招く表示と判明(ファイル自体は正常)。 |
+| 2026-07-11 | macOS用に`PDFMaskingTool.app`をこのMac上でビルド。ダブルクリックしても起動しない不具合が発生し調査。原因は2点: (1) PyInstallerの`--windowed`ビルドでは`sys.stdout`/`sys.stderr`が`None`になり、`print()`や内部警告出力が`AttributeError`となってダイアログ表示前に無言で落ちていた。(2) ダブルクリック起動時は作業ディレクトリがアプリの置き場所と一致しない(特にmacOSの`.app`は`/`になりがち)ため`input`/`output`を見つけられなかった。両方修正し、実PDFで一括処理が最後まで通ることを確認。 |
+| 2026-07-11 | マスキング範囲が想定と異なるという報告を受け調査 → `main.py`が`mask_picker.py`の採寸結果(`mask_coords.json`)を全く読み込まず、常にソースコード直書きの固定`MASKS`を使っていたことが判明(旧README記載の「座標を共有してもらい手動でmain.pyを書き換える」という運用のまま、自動連携する設計になっていなかった)。`main.py`が起動時に`mask_coords.json`を読み込み、`input/`内の全PDFに適用するよう修正。全面塗りつぶしのテスト用JSONとピクセルサンプリングで動作を検証。 |
+| 2026-07-11 | `mask_picker.py`にも同じ安定性対策(stdout/stderr対策、実行ファイル位置からのパス解決、debug.logへのエラー記録)を適用し、`MaskPicker.app`/`MaskPicker.exe`としてパッケージ化。GitHub Actionsのワークフローを両方の実行ファイルをビルドするよう更新。README/CLAUDE.mdを整備。 |
+| 2026-07-11 | ユーザーがmacOS実機で`MaskPicker`→`PDFMaskingTool`の一連の流れを確認し、問題なし。Windows実機での確認はまだ。 |
