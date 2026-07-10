@@ -11,3 +11,5 @@ calibration/*.png
 build/
 dist/
 *.spec
+
+.DS_Store

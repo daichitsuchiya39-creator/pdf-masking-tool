@@ -2,6 +2,7 @@ from pathlib import Path
 import fitz
 from PIL import Image, ImageDraw
 import io
+import json
 import os
 import sys
 import traceback
@@ -32,14 +33,15 @@ else:
 
 INPUT_DIR = BASE_DIR / "input"
 OUTPUT_DIR = BASE_DIR / "output"
+MASK_COORDS_PATH = BASE_DIR / "mask_coords.json"
 
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 ZOOM = 2  # get_pixmapの拡大率。MASKSはPDFポイント単位のため描画時にこの倍率を掛ける
 
-# A4横・同様レイアウト前提
-# mask_picker.py で GUI 上から採寸した座標(pt単位)
-MASKS = {
+# mask_picker.pyが未実行、またはmask_coords.jsonがまだ無い場合のフォールバック。
+# A4横・同様レイアウト前提。
+DEFAULT_MASKS = {
     0: [  # 1ページ目
         (71, 74, 109, 85),      # 職員番号
         (318, 73, 453, 92),     # 住所
@@ -54,6 +56,36 @@ MASKS = {
         (85, 76, 695, 557),     # 社会保険等
     ]
 }
+
+
+def load_masks():
+    """mask_coords.json(mask_picker.pyの保存結果)を読み込み、
+    ページ番号(int) -> [(x0,y0,x1,y1), ...] の辞書にして返す。
+
+    mask_coords.jsonはファイル名ごとに座標を保存する形式だが、このツールは
+    「同一レイアウトのPDFを一括処理する」設計のため、最後に保存された
+    ファイルの座標をinput/内の全PDF共通のマスクとして使う。
+    ファイルが無い/空/壊れている場合はDEFAULT_MASKSにフォールバックする。
+    """
+    if not MASK_COORDS_PATH.exists():
+        return DEFAULT_MASKS
+
+    try:
+        raw = json.loads(MASK_COORDS_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return DEFAULT_MASKS
+
+    if not raw:
+        return DEFAULT_MASKS
+
+    latest_entry = list(raw.values())[-1]
+    masks = {}
+    for page_no_str, items in latest_entry.items():
+        masks[int(page_no_str)] = [tuple(item["rect"]) for item in items]
+    return masks
+
+
+MASKS = load_masks()
 
 def main():
     pdf_files = sorted(INPUT_DIR.glob("*.pdf"))
