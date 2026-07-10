@@ -18,14 +18,37 @@ GUIでPDF上に矩形をマウス描画し、黒塗り座標(pt単位)を取得�
 from pathlib import Path
 import io
 import json
+import os
+import sys
+import traceback
 import tkinter as tk
 from tkinter import simpledialog, messagebox
 
 import fitz
 from PIL import Image, ImageTk
 
-INPUT_DIR = Path("input")
-OUTPUT_JSON = Path("mask_coords.json")
+# --windowed/--noconsoleビルドではsys.stdout/stderrがNoneになり、
+# ライブラリ内部の警告出力がAttributeErrorで落ちる原因になるため、
+# 起動直後に必ずダミーの書き込み先を用意しておく(main.pyと同じ対策)。
+if sys.stdout is None:
+    sys.stdout = open(os.devnull, "w")
+if sys.stderr is None:
+    sys.stderr = open(os.devnull, "w")
+
+# ダブルクリック起動時、作業ディレクトリはexe/.appの置き場所と一致しない
+# (main.pyと同じ理由・同じロジック)。PDFMaskingTool.appと同じ場所に置いて
+# 使う運用のため、input/やmask_coords.jsonもそこを基準に解決する。
+if getattr(sys, "frozen", False):
+    exe_path = Path(sys.executable).resolve()
+    if sys.platform == "darwin" and exe_path.parent.name == "MacOS":
+        BASE_DIR = exe_path.parents[3]
+    else:
+        BASE_DIR = exe_path.parent
+else:
+    BASE_DIR = Path(__file__).resolve().parent
+
+INPUT_DIR = BASE_DIR / "input"
+OUTPUT_JSON = BASE_DIR / "mask_coords.json"
 ZOOM = 2  # main.pyと合わせる
 
 try:
@@ -250,6 +273,15 @@ class MaskPicker:
 
 
 if __name__ == "__main__":
-    root = tk.Tk()
-    app = MaskPicker(root)
-    root.mainloop()
+    # tk.Tk()自体の初期化失敗も含めて捕まえ、DEBUG_LOGに記録しておく
+    # (--windowed/--noconsoleビルドでは黒い画面が出ないため、main.pyと同じ対策)。
+    DEBUG_LOG = BASE_DIR / "debug.log"
+    try:
+        root = tk.Tk()
+        app = MaskPicker(root)
+        root.mainloop()
+    except SystemExit:
+        raise
+    except Exception:
+        DEBUG_LOG.write_text(traceback.format_exc(), encoding="utf-8")
+        raise

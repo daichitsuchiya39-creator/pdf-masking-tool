@@ -5,6 +5,7 @@ on:
     branches: [main, master]
     paths:
       - "main.py"
+      - "mask_picker.py"
       - "requirements.txt"
       - ".github/workflows/build-exe.yml"
   workflow_dispatch: {}
@@ -25,12 +26,18 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
 
-      - name: Build exe
+      - name: Build PDFMaskingTool.exe
         run: |
           pyinstaller --onefile --noconsole --name PDFMaskingTool main.py
 
-      - name: Upload exe artifact
+      - name: Build MaskPicker.exe
+        run: |
+          pyinstaller --onefile --noconsole --name MaskPicker mask_picker.py
+
+      - name: Upload exe artifacts
         uses: actions/upload-artifact@v4
         with:
           name: PDFMaskingTool-windows-exe
-          path: dist/PDFMaskingTool.exe
+          path: |
+            dist/PDFMaskingTool.exe
+            dist/MaskPicker.exe

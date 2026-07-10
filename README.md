@@ -6,10 +6,19 @@
 
 | ファイル | 役割 |
 |---|---|
-| `main.py` | `input/*.pdf` を読み込み、`MASKS` で指定した矩形を黒塗りして `output/*_masked.pdf` に出力する本体スクリプト |
+| `main.py` | `input/*.pdf` を読み込み、`mask_coords.json` で指定した矩形を黒塗りして `output/*_masked.pdf` に出力する本体スクリプト |
 | `mask_picker.py` | GUI(Tkinter)でPDFページ上をマウスドラッグし、黒塗りしたい矩形の座標(pt単位)を採寸するツール。結果は `mask_coords.json` に保存される |
 | `calibrate.py` | GUIが使えない環境向けのフォールバック。ページ画像にpt単位の座標グリッドを重ねた画像を `calibration/` に出力し、目視で座標を読み取れるようにする |
-| `mask_coords.json` | `mask_picker.py` の採寸結果(ラベル名と矩形座標の数値のみ。個人情報の値は含まない) |
+| `mask_coords.json` | `mask_picker.py` の採寸結果(ラベル名と矩形座標の数値のみ。個人情報の値は含まない)。`main.py` はこのファイルを毎回読み込んで使う |
+
+## パッケージ版(Python不要)
+
+一般ユーザー向けに、Python環境なしでダブルクリックだけで使える実行ファイルを配布できる。
+
+- Windows: `PDFMaskingTool.exe` / `MaskPicker.exe`(GitHub Actionsが`main.py`/`mask_picker.py`へのpushのたびに自動ビルドし、Actionsタブのartifactからダウンロード可能)
+- macOS: `PDFMaskingTool.app` / `MaskPicker.app`(`pyinstaller --windowed --name <名前> <script>.py` でこのMac上でビルド)
+
+使い方は同じで、`MaskPicker`と`PDFMaskingTool`を同じフォルダに置き、その中に`input/`を作ってPDFを入れる。実行ファイルの置き場所を基準に`input/`・`output/`・`mask_coords.json`を解決するため、作業ディレクトリに依存しない。
 
 ## 座標系についての注意(重要)
 
@@ -30,17 +39,18 @@
    - 右クリックで矩形削除、「元に戻す」で直前の1件取り消し
    - 「次のページ」「前のページ」でページ送り
    - 「保存して終了」で `mask_coords.json` に書き出す
-3. `mask_coords.json`(数値とラベル名のみ)の内容を共有してもらい、`main.py` の `MASKS` にページ番号ごとの矩形リストとして反映する。
-4. `python main.py` を実行し、`output/` の結果を目視確認する。
+3. `python main.py` を実行する。`main.py` は起動のたびに `mask_coords.json` を読み込むため、追加の操作なしにそのまま新しい座標が反映される。`output/` の結果を目視確認する。
 
-GUIが使えない環境では、代わりに `python calibrate.py` で `calibration/` にグリッド付き画像を出力し、目視でpt座標を読み取って手動で `MASKS` を更新する(採寸精度は落ちるが同じ考え方)。
+`mask_coords.json` が無い/壊れている場合は、`main.py` 内の `DEFAULT_MASKS`(フォールバック用の初期値)が使われる。
+
+GUIが使えない環境では、代わりに `python calibrate.py` で `calibration/` にグリッド付き画像を出力し、目視でpt座標を読み取って `mask_coords.json` を手動編集する(採寸精度は落ちるが同じ考え方)。
 
 ## 一括マスキングの前提
 
-`main.py` は `input/` 内の**すべての**PDFに対して同一の `MASKS` を適用する(「同一レイアウトのPDFを一括処理する」という設計)。そのため:
+`main.py` は `input/` 内の**すべての**PDFに対して同一のマスク(`mask_coords.json` に保存されている、最後に採寸したファイルの座標)を適用する(「同一レイアウトのPDFを一括処理する」という設計)。そのため:
 
 - 同じ帳票フォーマットで対象者だけが異なる複数PDFを一気に処理するのに向いている。
-- レイアウトが異なるPDF(別の帳票種類など)を混在させると座標がズレるため、フォーマットごとに `mask_picker.py` で座標を採寸し直し、`MASKS` を作り直す必要がある。
+- レイアウトが異なるPDF(別の帳票種類など)を混在させると座標がズレるため、フォーマットごとに `mask_picker.py` で座標を採寸し直し、`mask_coords.json` を作り直す必要がある。
 
 ## 実行方法
 
