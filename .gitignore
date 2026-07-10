@@ -6,3 +6,8 @@ __pycache__/
 
 # calibration grid images (contain unmasked personal data)
 calibration/*.png
+
+# PyInstaller build output
+build/
+dist/
+*.spec
