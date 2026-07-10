@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+
+# PDF (may contain unmasked personal data)
+*.pdf
+
+# calibration grid images (contain unmasked personal data)
+calibration/*.png
