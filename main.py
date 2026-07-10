@@ -2,6 +2,10 @@ from pathlib import Path
 import fitz
 from PIL import Image, ImageDraw
 import io
+import sys
+import traceback
+import tkinter as tk
+from tkinter import messagebox
 
 INPUT_DIR = Path("input")
 OUTPUT_DIR = Path("output")
@@ -29,7 +33,10 @@ MASKS = {
 }
 
 def main():
-    for pdf_file in INPUT_DIR.glob("*.pdf"):
+    pdf_files = sorted(INPUT_DIR.glob("*.pdf"))
+    processed = []
+
+    for pdf_file in pdf_files:
 
         doc = fitz.open(pdf_file)
         out_doc = fitz.open()
@@ -64,9 +71,45 @@ def main():
         output_pdf = OUTPUT_DIR / f"{pdf_file.stem}_masked.pdf"
 
         out_doc.save(output_pdf)
+        processed.append(output_pdf)
 
         print(f"完了: {output_pdf}")
 
+    return processed
+
 
 if __name__ == "__main__":
-    main()
+    # ダブルクリック起動時は黒い画面が一切出ないため(--noconsoleビルド)、
+    # 処理結果をダイアログで必ず通知する。
+    root = tk.Tk()
+    root.withdraw()
+
+    if not INPUT_DIR.exists() or not any(INPUT_DIR.glob("*.pdf")):
+        messagebox.showwarning(
+            "PDFが見つかりません",
+            f"{INPUT_DIR.resolve()} にPDFファイルが見つかりませんでした。\n"
+            "このツールと同じ場所に input フォルダを作り、PDFを入れてから再実行してください。",
+        )
+        sys.exit(1)
+
+    try:
+        processed = main()
+    except Exception:
+        messagebox.showerror(
+            "エラーが発生しました",
+            "マスキング処理中にエラーが発生しました。\n\n" + traceback.format_exc(),
+        )
+        sys.exit(1)
+
+    if processed:
+        names = "\n".join(p.name for p in processed)
+        messagebox.showinfo(
+            "完了",
+            f"{len(processed)} 件のPDFを処理しました。\n"
+            f"出力先: {OUTPUT_DIR.resolve()}\n\n{names}",
+        )
+    else:
+        messagebox.showwarning(
+            "処理対象なし",
+            f"{INPUT_DIR.resolve()} にPDFファイルが見つかりませんでした。",
+        )
